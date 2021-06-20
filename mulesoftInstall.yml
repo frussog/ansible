@@ -1,0 +1,57 @@
+---
+- hosts: localhost
+  remote_user: root
+  vars: 
+     - deploy_info: {
+                'Path': 'mulesofthome',
+                'production': 'production',
+                'sandbox': 'sandbox'
+                }
+  
+  tasks:
+    - name: display dictionary data
+      debug: var=deploy_info
+  
+    - name: create mulesofthome
+      file: path="{{deploy_info.Path}}" state=directory
+
+    - name: create sandbox      
+      file: path="{{deploy_info.Path}}/{{deploy_info.sandbox}}" state=directory
+
+    - name: create mulesofthome      
+      file: path="{{deploy_info.Path}}/{{deploy_info.production}}" state=directory
+       
+
+    - name: Copy "gdown" script to /usr/local/bin
+      copy: src=gdown.pl
+            dest=/usr/local/bin/gdown
+            mode=0755
+       
+       
+    - name: Download Mule zip file.
+      command: "/usr/local/bin/gdown https://drive.google.com/file/d/1D-POHrHKI3C2W34ESi5MDiYAtUIy8wVr/view?usp=sharing {{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip"
+
+    - name: Copy mule.zip to prdocution destination
+      copy: src={{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip
+            dest={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
+            
+    - name: Unzip mule in sandbox
+      ansible.builtin.unarchive:
+        src={{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip
+        dest={{deploy_info.Path}}/{{deploy_info.sandbox}}
+        
+    - name: Remove zip file in sandbox
+      file:
+        path={{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip
+        state=absent
+
+    - name: Unzip mule in production
+      ansible.builtin.unarchive:
+        src={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
+        dest={{deploy_info.Path}}/{{deploy_info.production}}
+        
+    - name: Remove zip file in production
+      file:
+        path={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
+        state=absent
+    
