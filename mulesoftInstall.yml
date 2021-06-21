@@ -28,7 +28,7 @@
             mode=0755
        
        
-    - name: Download Mule zip file.
+    - name: Download Mule zip file to sandbox destination.
       command: "/usr/local/bin/gdown https://drive.google.com/file/d/1D-POHrHKI3C2W34ESi5MDiYAtUIy8wVr/view?usp=sharing {{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip"
 
     - name: Copy mule.zip to prdocution destination
@@ -54,4 +54,19 @@
       file:
         path={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
         state=absent
+    
+    
+    # Login to anypoint platform
+    - name: Login to anypoint platform to obtain a token  
+      uri:        
+        url: https://anypoint.mulesoft.com/accounts/login
+        method: POST        
+        return_content: yes
+        HEADER_Content-Type: "application/json"
+        body_format: "json"
+        body: "{{ lookup('file','loginBody.json')| from_json }}"
+      register: loginResponse
+        
+    - name: Login response
+      debug: var=loginResponse.json.access_token
     
