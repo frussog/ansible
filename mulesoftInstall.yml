@@ -4,11 +4,17 @@
   vars: 
      - deploy_info: {
                 'Path': 'mulesofthome',
-                'production': 'production',
-                'sandbox': 'sandbox'
+                'sandbox': 'sandbox',
+                'muleDownloadUri': 'https://drive.google.com/file/d/1D-POHrHKI3C2W34ESi5MDiYAtUIy8wVr/view?usp=sharing'
                 }
   
   tasks:
+  
+    - name: Load properties
+      include_vars:
+        file: properties.yml
+        name: properties
+
     - name: display dictionary data
       debug: var=deploy_info
   
@@ -17,9 +23,6 @@
 
     - name: create sandbox      
       file: path="{{deploy_info.Path}}/{{deploy_info.sandbox}}" state=directory
-
-    - name: create mulesofthome      
-      file: path="{{deploy_info.Path}}/{{deploy_info.production}}" state=directory
        
 
     - name: Copy "gdown" script to /usr/local/bin
@@ -29,35 +32,24 @@
        
        
     - name: Download Mule zip file to sandbox destination.
-      command: "/usr/local/bin/gdown https://drive.google.com/file/d/1D-POHrHKI3C2W34ESi5MDiYAtUIy8wVr/view?usp=sharing {{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip"
+      command: "/usr/local/bin/gdown {{deploy_info.muleDownloadUri}} {{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip"
 
-    - name: Copy mule.zip to prdocution destination
-      copy: src={{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip
-            dest={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
-            
+      
     - name: Unzip mule in sandbox
       ansible.builtin.unarchive:
         src={{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip
         dest={{deploy_info.Path}}/{{deploy_info.sandbox}}
-        
+        list_files=yes
+      register: archive_contents
+
+    
     - name: Remove zip file in sandbox
       file:
         path={{deploy_info.Path}}/{{deploy_info.sandbox}}/mule.zip
         state=absent
-
-    - name: Unzip mule in production
-      ansible.builtin.unarchive:
-        src={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
-        dest={{deploy_info.Path}}/{{deploy_info.production}}
         
-    - name: Remove zip file in production
-      file:
-        path={{deploy_info.Path}}/{{deploy_info.production}}/mule.zip
-        state=absent
-    
-    
-    # Login to anypoint platform
-    - name: Login to anypoint platform to obtain a token  
+        
+    - name: Login to anypoint platform to obtain a token for sandbox
       uri:        
         url: https://anypoint.mulesoft.com/accounts/login
         method: POST        
@@ -67,6 +59,19 @@
         body: "{{ lookup('file','loginBody.json')| from_json }}"
       register: loginResponse
         
-    - name: Login response
-      debug: var=loginResponse.json.access_token
     
+    - name: Retrieve registration token
+      uri:        
+        url: https://anypoint.mulesoft.com/hybrid/api/v1/servers/registrationToken
+        method: GET
+        headers:
+          Authorization=Bearer {{loginResponse.json.access_token}}
+          X-ANYPNT-ENV-ID={{properties.environment.id}}
+          X-ANYPNT-ORG-ID={{properties.org.id}}
+        register: registerResponse
+    
+    - name: Register sandbox server      
+      local_action: command {{deploy_info.Path}}/{{deploy_info.sandbox}}/{{archive_contents.files[0]}}/amc_setup {{registerResponse.json.data}}
+      
+       
+        
